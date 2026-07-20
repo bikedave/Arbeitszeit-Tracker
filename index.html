@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arbeitszeiten-Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: white; min-height: 100vh; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+        header h1 { font-size: 22px; margin-bottom: 5px; }
+        header p { font-size: 13px; opacity: 0.9; }
+        .tabs { display: flex; background: #f0f0f0; border-bottom: 2px solid #ddd; position: sticky; top: 0; z-index: 10; }
+        .tab-btn { flex: 1; padding: 12px 4px; border: none; background: transparent; cursor: pointer; font-size: 12px; font-weight: 500; color: #666; border-bottom: 3px solid transparent; transition: all 0.3s; }
+        .tab-btn.active { color: #667eea; border-bottom-color: #667eea; background: white; }
+        .content { display: none; padding: 20px; }
+        .content.active { display: block; }
+        .summary-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .summary-card h3 { font-size: 13px; opacity: 0.9; margin-bottom: 8px; }
+        .summary-card .value { font-size: 28px; font-weight: bold; }
+        .summary-card .sub { font-size: 13px; margin-top: 8px; opacity: 0.9; }
+        .diff.positive { color: #90EE90; }
+        .diff.negative { color: #FFB6C6; }
+        .day-input { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #eee; }
+        .day-info { flex: 1; }
+        .day-date { font-weight: 600; font-size: 13px; }
+        .day-times { font-size: 12px; color: #666; margin-top: 2px; }
+        .day-comment { font-size: 11px; color: #999; font-style: italic; margin-top: 3px; }
+        .day-hours { font-weight: 600; font-size: 13px; color: #667eea; white-space: nowrap; padding-top: 2px; }
+        .day-edit-btn { background: #667eea; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; }
+        .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; gap: 10px; }
+        .month-nav h3 { font-size: 15px; color: #333; text-align: center; flex: 1; }
+        .month-nav button { background: #667eea; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+        .month-nav button:disabled { background: #ccc; cursor: default; }
+        .weekday-headers { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; text-align: center; font-size: 11px; font-weight: 600; color: #999; }
+        .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+        .cal-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; border: 2px solid #ddd; background: white; transition: all 0.2s; padding: 2px; }
+        .cal-day.other-month { opacity: 0.2; cursor: default; border-color: transparent; background: transparent; }
+        .cal-day.has-entry { background: #e8f0ff; border-color: #667eea; }
+        .cal-day.today { border-color: #ff6b6b; font-weight: bold; }
+        .cal-day:hover:not(.other-month) { box-shadow: 0 2px 8px rgba(102,126,234,0.3); }
+        .cal-day-date { font-size: 12px; font-weight: 600; }
+        .cal-day-hours { font-size: 9px; color: #555; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 15px; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 25px; border-radius: 10px; width: 100%; max-width: 400px; max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { margin-bottom: 20px; font-size: 17px; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 500; color: #555; }
+        .form-group input, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; font-family: inherit; }
+        .form-group input:focus, .form-group textarea:focus { outline: none; border-color: #667eea; }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .modal-buttons { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+        .modal-buttons button { flex: 1; min-width: 75px; padding: 10px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        .btn-danger { background: #ff6b6b; color: white; }
+        .settings-group { margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee; }
+        .settings-group:last-child { border-bottom: none; }
+        .settings-group h3 { font-size: 15px; margin-bottom: 12px; font-weight: 600; }
+        .token-saved-info { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 10px; display: none; }
+        .btn { display: block; width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 10px; text-align: center; }
+        .btn:hover { background: #764ba2; }
+        .btn.sec { background: #f0f0f0; color: #333; }
+        .btn.sec:hover { background: #e0e0e0; }
+        .btn.dng { background: #ff6b6b; color: white; }
+        .btn.dng:hover { background: #ff5252; }
+        .status-msg { padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 13px; text-align: center; display: none; }
+        .status-msg.show { display: block; }
+        .status-msg.success { background: #d4edda; color: #155724; }
+        .status-msg.error { background: #f8d7da; color: #721c24; }
+        .status-msg.info { background: #d1ecf1; color: #0c5460; }
+        .month-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 6px; margin-bottom: 8px; background: #f9f9f9; border: 1px solid #eee; }
+        .month-row-info .month-name { font-weight: 600; font-size: 14px; }
+        .month-row-info .month-sub { font-size: 12px; color: #666; margin-top: 3px; }
+        .month-diff { font-weight: 600; font-size: 14px; white-space: nowrap; margin-left: 10px; }
+        .month-diff.positive { color: #27ae60; }
+        .month-diff.negative { color: #e74c3c; }
+        .hist-entry { background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin-bottom: 10px; }
+        .hist-entry h4 { font-size: 14px; margin-bottom: 10px; color: #333; }
+        .hist-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+        .hist-label { font-size: 12px; color: #666; min-width: 105px; }
+        .hist-value { font-size: 13px; font-weight: 500; }
+        .hist-input { width: 80px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+        .hist-unit { font-size: 12px; color: #666; }
+        .hist-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .small-btn { padding: 5px 12px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; }
+        .small-btn.primary { background: #667eea; color: white; }
+        .small-btn.danger { background: #ff6b6b; color: white; }
+        .reg-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+        .reg-row label { flex: 1; font-size: 13px; color: #555; }
+        .reg-input { width: 75px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; text-align: center; }
+        .inline-btns { display: flex; gap: 8px; margin-bottom: 8px; }
+        .inline-btns .btn { margin-bottom: 0; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>&#9201;&#65039; Arbeitszeiten-Tracker</h1>
+        <p id="sync-status">Bereit</p>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="overview">&#220;bersicht</button>
+        <button class="tab-btn" data-tab="calendar">Kalender</button>
+        <button class="tab-btn" data-tab="total">Gesamtstand</button>
+        <button class="tab-btn" data-tab="settings">Einstellungen</button>
+    </div>
+
+    <div class="content active" id="overview">
+        <div class="status-msg" id="overview-status"></div>
+        <div class="summary-card">
+            <h3 id="overview-month-label">Dieser Monat</h3>
+            <div class="value" id="current-month-hours">-</div>
+            <div class="diff sub" id="current-month-diff"></div>
+        </div>
+        <div>
+            <h3 style="margin-bottom:15px;color:#333;">Eintr&#228;ge diesen Monat</h3>
+            <div id="entries-list"></div>
+        </div>
+        <button class="btn" onclick="openDayModal(new Date())">+ Heute eintragen</button>
+        <button class="btn sec" onclick="syncToGitHub()">&#x1F504; Sync mit GitHub</button>
+    </div>
+
+    <div class="content" id="calendar">
+        <div class="status-msg" id="calendar-status"></div>
+        <div class="month-nav">
+            <button id="prev-btn" onclick="prevMonth()">&#8592; Zur&#252;ck</button>
+            <h3 id="cal-month-label">-</h3>
+            <button id="next-btn" onclick="nextMonth()">Vor &#8594;</button>
+        </div>
+        <div class="weekday-headers">
+            <div>Mo</div><div>Di</div><div>Mi</div><div>Do</div><div>Fr</div><div>Sa</div><div>So</div>
+        </div>
+        <div class="calendar" id="cal-grid"></div>
+        <p style="text-align:center;color:#999;font-size:13px;margin-top:15px;">Auf Tag tippen zum Eintragen</p>
+    </div>
+
+    <div class="content" id="total">
+        <div class="status-msg" id="total-status"></div>
+        <div class="summary-card">
+            <h3>Gesamtsaldo</h3>
+            <div class="value" id="total-balance">-</div>
+            <div class="sub">
+                <div id="total-worked">-</div>
+                <div id="total-registered">-</div>
+            </div>
+        </div>
+        <h3 style="margin-bottom:15px;color:#333;">Nach Monat</h3>
+        <div id="monthly-breakdown"></div>
+        <h3 style="margin:20px 0 10px;color:#333;">Manuelle Monatseintr&#228;ge</h3>
+        <p style="font-size:12px;color:#666;margin-bottom:15px;">F&#252;r Monate ohne Tageseintr&#228;ge (z.B. Vorperioden).</p>
+        <div id="hist-list"></div>
+        <button class="btn sec" onclick="openHistModal()">+ Monat manuell hinzuf&#252;gen</button>
+    </div>
+
+    <div class="content" id="settings">
+        <div class="status-msg" id="settings-status"></div>
+        <div class="settings-group">
+            <h3>GitHub Fine-Grained Token</h3>
+            <p style="font-size:12px;color:#666;margin-bottom:10px;">F&#252;r Backup im privaten Arbeitszeiten-Backups Repo. <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:#667eea;">Token erstellen &#8594;</a></p>
+            <div class="token-saved-info" id="token-saved-display">&#128274; Token gespeichert &#8211; wird nicht angezeigt</div>
+            <input type="password" id="github-token-input" placeholder="github_pat_..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:14px;margin-bottom:8px;">
+            <div class="inline-btns">
+                <button class="btn" id="token-save-btn" onclick="saveToken()">Token speichern</button>
+                <button class="btn sec" id="token-change-btn" onclick="editToken()" style="display:none;">&#196;ndern</button>
+            </div>
+            <small style="color:#999;font-size:11px;">Token wird nur lokal gespeichert, nie hochgeladen</small>
+        </div>
+        <div class="settings-group">
+            <h3>Angemeldete Stunden pro Monat</h3>
+            <p style="font-size:12px;color:#666;margin-bottom:12px;">Offizielle Soll-Stunden je Monat.</p>
+            <div id="reg-hours-list"></div>
+        </div>
+        <div class="settings-group">
+            <h3>Export &amp; Import</h3>
+            <button class="btn sec" onclick="exportData()">&#128229; Daten exportieren (JSON)</button>
+            <button class="btn sec" onclick="document.getElementById('import-input').click()">&#128228; Daten importieren</button>
+            <input type="file" id="import-input" accept=".json" style="display:none;" onchange="importData(event)">
+        </div>
+        <div class="settings-group">
+            <h3>Datenverwaltung</h3>
+            <p style="font-size:12px;color:#666;margin-bottom:10px;">L&#246;scht alle lokal gespeicherten Eintr&#228;ge. GitHub-Backup bleibt erhalten.</p>
+            <button class="btn dng" onclick="clearAllData()">&#128465;&#65039; Alle lokalen Daten l&#246;schen</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="day-modal">
+    <div class="modal-content">
+        <h2 id="modal-title">Zeiten eintragen</h2>
+        <div class="form-group">
+            <label>Datum</label>
+            <input type="date" id="modal-date">
+        </div>
+        <div class="form-group">
+            <label>Start</label>
+            <input type="time" id="modal-start">
+        </div>
+        <div class="form-group">
+            <label>Ende</label>
+            <input type="time" id="modal-end">
+        </div>
+        <div class="form-group">
+            <label>Kommentar (optional)</label>
+            <textarea id="modal-comment" placeholder="z.B. Homeoffice, Dienstreise..."></textarea>
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-secondary" onclick="closeDayModal()">Abbrechen</button>
+            <button class="btn-primary" onclick="saveDayEntry()">Speichern</button>
+            <button class="btn-danger" id="delete-btn" onclick="deleteEntry()" style="display:none;">L&#246;schen</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="hist-modal">
+    <div class="modal-content">
+        <h2>Monat manuell eintragen</h2>
+        <p style="font-size:12px;color:#666;margin-bottom:15px;">Nur f&#252;r Monate ohne Tageseintr&#228;ge verwenden.</p>
+        <div class="form-group">
+            <label>Monat</label>
+            <input type="month" id="hist-month">
+        </div>
+        <div class="form-group">
+            <label>Gearbeitete Stunden (z.B. 86.5)</label>
+            <input type="number" id="hist-worked" placeholder="0" step="0.5" min="0">
+        </div>
+        <div class="form-group">
+            <label>Angemeldete Stunden (Soll)</label>
+            <input type="number" id="hist-registered" placeholder="0" step="0.5" min="0">
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-secondary" onclick="closeHistModal()">Abbrechen</button>
+            <button class="btn-primary" onclick="saveHistEntry()">Speichern</button>
+        </div>
+    </div>
+</div>
+
+<script>
+var GITHUB_OWNER = 'bikedave';
+var GITHUB_REPO = 'Arbeitszeiten-Backups';
+var MIN_YEAR = 2020;
+var MAX_YEAR = 2060;
+
+var entries = {};
+var registeredHours = {};
+var historicalMonths = {};
+var settings = { githubToken: '' };
+var currentViewDate = new Date();
+var currentEditDateStr = null;
+
+function init() {
+    loadData();
+    setupTabs();
+    renderAll();
+    renderRegHoursList();
+    if (settings.githubToken) syncToGitHub();
+}
+
+function renderAll() {
+    renderOverview();
+    renderCalendar();
+    renderTotal();
+}
+
+function migrateEntries(raw) {
+    var out = {};
+    var keys = Object.keys(raw || {});
+    for (var i = 0; i < keys.length; i++) {
+        var date = keys[i];
+        var val = raw[date];
+        if (typeof val === 'string') {
+            var parts = val.split('-');
+            out[date] = { start: parts[0], end: parts[1], comment: '' };
+        } else {
+            out[date] = { start: val.start, end: val.end, comment: val.comment || '' };
+        }
+    }
+    return out;
+}
+
+function loadData() {
+    var e = localStorage.getItem('entries');
+    if (e) entries = migrateEntries(JSON.parse(e));
+    var r = localStorage.getItem('registeredHours');
+    if (r) registeredHours = JSON.parse(r);
+    var h = localStorage.getItem('historicalMonths');
+    if (h) historicalMonths = JSON.parse(h);
+    var s = localStorage.getItem('settings');
+    if (s) settings = Object.assign({ githubToken: '' }, JSON.parse(s));
+
+    if (settings.githubToken) {
+        document.getElementById('token-saved-display').style.display = 'block';
+        document.getElementById('github-token-input').style.display = 'none';
+        document.getElementById('token-save-btn').style.display = 'none';
+        document.getElementById('token-change-btn').style.display = 'block';
+    }
+}
+
+function saveLocalData() {
+    localStorage.setItem('entries', JSON.stringify(entries));
+    localStorage.setItem('registeredHours', JSON.stringify(registeredHours));
+    localStorage.setItem('historicalMonths', JSON.stringify(historicalMonths));
+}
+
+function setupTabs() {
+    var btns = document.querySelectorAll('.tab-btn');
+    for (var i = 0; i < btns.length; i++) {
+        btns[i].addEventListener('click', function(e) {
+            var allBtns = document.querySelectorAll('.tab-btn');
+            var allContent = document.querySelectorAll('.content');
+            for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove('active');
+            for (var j = 0; j < allContent.length; j++) allContent[j].classList.remove('active');
+            e.target.classList.add('active');
+            document.getElementById(e.target.dataset.tab).classList.add('active');
+        });
+    }
+}
+
+function renderOverview() {
+    var now = new Date();
+    var mKey = getMonthKey(now);
+    document.getElementById('overview-month-label').textContent = formatMonthName(now);
+
+    var worked = 0;
+    var keys = Object.keys(entries);
+    for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf(mKey) === 0) {
+            var en = entries[keys[i]];
+            worked += calcDecimal(en.start, en.end);
+        }
+    }
+
+    var reg = registeredHours[mKey] || 0;
+    var diff = worked - reg;
+    document.getElementById('current-month-hours').textContent = fmtH(worked);
+    var diffEl = document.getElementById('current-month-diff');
+    if (reg > 0) {
+        diffEl.textContent = (diff >= 0 ? '+' : '') + fmtH(diff) + ' (Soll: ' + fmtH(reg) + ')';
+        diffEl.className = 'diff sub ' + (diff >= 0 ? 'positive' : 'negative');
+    } else {
+        diffEl.textContent = '';
+    }
+
+    var list = document.getElementById('entries-list');
+    list.innerHTML = '';
+    var monthEntries = [];
+    for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf(mKey) === 0) monthEntries.push(keys[i]);
+    }
+    monthEntries.sort().reverse();
+
+    if (monthEntries.length === 0) {
+        list.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">Noch keine Einträge</p>';
+    } else {
+        for (var i = 0; i < monthEntries.length; i++) {
+            var dateStr = monthEntries[i];
+            var entry = entries[dateStr];
+            var h = calcDecimal(entry.start, entry.end);
+            var el = document.createElement('div');
+            el.className = 'day-input';
+            var comment = entry.comment ? '<div class="day-comment">' + entry.comment + '</div>' : '';
+            el.innerHTML = '<div class="day-info"><div class="day-date">' + fmtDateDE(parseLocal(dateStr)) + '</div><div class="day-times">' + entry.start + ' – ' + entry.end + '</div>' + comment + '</div><div class="day-hours">' + fmtH(h) + '</div><button class="day-edit-btn" onclick="openDayModal(parseLocal(\'' + dateStr + '\'))">Bearbeiten</button>';
+            list.appendChild(el);
+        }
+    }
+}
+
+function renderCalendar() {
+    var year = currentViewDate.getFullYear();
+    var month = currentViewDate.getMonth();
+    var today = new Date();
+
+    document.getElementById('cal-month-label').textContent = formatMonthName(currentViewDate);
+    document.getElementById('prev-btn').disabled = (year <= MIN_YEAR && month === 0);
+    document.getElementById('next-btn').disabled = (year >= MAX_YEAR && month === 11);
+
+    var firstDay = new Date(year, month, 1);
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var startDOW = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+
+    var grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+
+    var prevMonthDays = new Date(year, month, 0).getDate();
+    for (var i = startDOW - 1; i >= 0; i--) {
+        var el = document.createElement('div');
+        el.className = 'cal-day other-month';
+        el.innerHTML = '<div class="cal-day-date">' + (prevMonthDays - i) + '</div>';
+        grid.appendChild(el);
+    }
+
+    for (var day = 1; day <= daysInMonth; day++) {
+        var dateObj = new Date(year, month, day);
+        var dateStr = fmtDateInput(dateObj);
+        var entry = entries[dateStr];
+        var el = document.createElement('div');
+        el.className = 'cal-day';
+        if (entry) el.classList.add('has-entry');
+        if (dateObj.toDateString() === today.toDateString()) el.classList.add('today');
+        if (entry) {
+            var h = calcDecimal(entry.start, entry.end);
+            el.innerHTML = '<div class="cal-day-date">' + day + '</div><div class="cal-day-hours">' + fmtHShort(h) + '</div>';
+        } else {
+            el.innerHTML = '<div class="cal-day-date">' + day + '</div>';
+        }
+        (function(d) { el.addEventListener('click', function() { openDayModal(d); }); })(dateObj);
+        grid.appendChild(el);
+    }
+
+    var totalCells = grid.children.length;
+    var remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+    for (var i = 1; i <= remaining; i++) {
+        var el = document.createElement('div');
+        el.className = 'cal-day other-month';
+        el.innerHTML = '<div class="cal-day-date">' + i + '</div>';
+        grid.appendChild(el);
+    }
+}
+
+function prevMonth() {
+    var d = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth() - 1, 1);
+    if (d.getFullYear() < MIN_YEAR) return;
+    currentViewDate = d;
+    renderCalendar();
+}
+
+function nextMonth() {
+    var d = new Date(currentViewDate.getFullYear(), currentViewDate.getMonth() + 1, 1);
+    if (d.getFullYear() > MAX_YEAR) return;
+    currentViewDate = d;
+    renderCalendar();
+}
+
+function renderTotal() {
+    var byMonth = {};
+    var keys = Object.keys(entries);
+    for (var i = 0; i < keys.length; i++) {
+        var mKey = keys[i].substring(0, 7);
+        if (!byMonth[mKey]) byMonth[mKey] = 0;
+        byMonth[mKey] += calcDecimal(entries[keys[i]].start, entries[keys[i]].end);
+    }
+
+    var allMonthsSet = {};
+    var bKeys = Object.keys(byMonth);
+    var hKeys = Object.keys(historicalMonths);
+    for (var i = 0; i < bKeys.length; i++) allMonthsSet[bKeys[i]] = true;
+    for (var i = 0; i < hKeys.length; i++) allMonthsSet[hKeys[i]] = true;
+    var allMonths = Object.keys(allMonthsSet).sort().reverse();
+
+    var totalWorked = 0, totalRegistered = 0;
+    var breakdown = document.getElementById('monthly-breakdown');
+    breakdown.innerHTML = '';
+
+    for (var i = 0; i < allMonths.length; i++) {
+        var mKey = allMonths[i];
+        var worked, registered, isHist = false;
+        if (byMonth[mKey] && byMonth[mKey] > 0) {
+            worked = byMonth[mKey];
+            registered = registeredHours[mKey] || 0;
+        } else if (historicalMonths[mKey] && historicalMonths[mKey].locked) {
+            worked = historicalMonths[mKey].worked;
+            registered = historicalMonths[mKey].registered;
+            isHist = true;
+        } else {
+            continue;
+        }
+        totalWorked += worked;
+        totalRegistered += registered;
+        var diff = worked - registered;
+        var parts = mKey.split('-');
+        var label = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(new Date(+parts[0], +parts[1] - 1, 1));
+        var histTag = isHist ? ' <span style="font-size:10px;color:#aaa;">(manuell)</span>' : '';
+        var el = document.createElement('div');
+        el.className = 'month-row';
+        el.innerHTML = '<div class="month-row-info"><div class="month-name">' + label + histTag + '</div><div class="month-sub">' + fmtH(worked) + ' gearbeitet / ' + fmtH(registered) + ' angemeldet</div></div><div class="month-diff ' + (diff >= 0 ? 'positive' : 'negative') + '">' + (diff >= 0 ? '+' : '') + fmtH(diff) + '</div>';
+        breakdown.appendChild(el);
+    }
+
+    var totalDiff = totalWorked - totalRegistered;
+    document.getElementById('total-balance').textContent = (totalDiff >= 0 ? '+' : '') + fmtH(totalDiff);
+    document.getElementById('total-worked').textContent = fmtH(totalWorked) + ' gearbeitet';
+    document.getElementById('total-registered').textContent = fmtH(totalRegistered) + ' angemeldet';
+    renderHistList();
+}
+
+function renderHistList() {
+    var list = document.getElementById('hist-list');
+    list.innerHTML = '';
+    var keys = Object.keys(historicalMonths).sort().reverse();
+    for (var i = 0; i < keys.length; i++) {
+        var mKey = keys[i];
+        var data = historicalMonths[mKey];
+        var parts = mKey.split('-');
+        var label = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(new Date(+parts[0], +parts[1] - 1, 1));
+        var el = document.createElement('div');
+        el.className = 'hist-entry';
+        if (data.locked) {
+            el.innerHTML = '<h4>' + label + '</h4><div class="hist-row"><span class="hist-label">Gearbeitet:</span><span class="hist-value">' + fmtH(data.worked) + '</span></div><div class="hist-row"><span class="hist-label">Angemeldet:</span><span class="hist-value">' + fmtH(data.registered) + '</span></div><div class="hist-actions"><button class="small-btn primary" onclick="editHistEntry(\'' + mKey + '\')">Bearbeiten</button><button class="small-btn danger" onclick="deleteHistEntry(\'' + mKey + '\')">Löschen</button></div>';
+        } else {
+            el.innerHTML = '<h4>' + label + '</h4><div class="hist-row"><span class="hist-label">Gearbeitet:</span><input class="hist-input" type="number" id="hw-' + mKey + '" value="' + (data.worked || '') + '" step="0.5" min="0"><span class="hist-unit">h</span></div><div class="hist-row"><span class="hist-label">Angemeldet:</span><input class="hist-input" type="number" id="hr-' + mKey + '" value="' + (data.registered || '') + '" step="0.5" min="0"><span class="hist-unit">h</span></div><div class="hist-actions"><button class="small-btn primary" onclick="lockHistEntry(\'' + mKey + '\')">Speichern</button></div>';
+        }
+        list.appendChild(el);
+    }
+}
+
+function openHistModal() {
+    document.getElementById('hist-month').value = '';
+    document.getElementById('hist-worked').value = '';
+    document.getElementById('hist-registered').value = '';
+    document.getElementById('hist-modal').classList.add('active');
+}
+
+function closeHistModal() {
+    document.getElementById('hist-modal').classList.remove('active');
+}
+
+function saveHistEntry() {
+    var month = document.getElementById('hist-month').value;
+    if (!month) { alert('Bitte Monat auswählen'); return; }
+    historicalMonths[month] = {
+        worked: parseFloat(document.getElementById('hist-worked').value) || 0,
+        registered: parseFloat(document.getElementById('hist-registered').value) || 0,
+        locked: true
+    };
+    saveLocalData();
+    closeHistModal();
+    renderTotal();
+    syncToGitHub();
+}
+
+function editHistEntry(mKey) {
+    historicalMonths[mKey].locked = false;
+    saveLocalData();
+    renderHistList();
+}
+
+function lockHistEntry(mKey) {
+    historicalMonths[mKey] = {
+        worked: parseFloat(document.getElementById('hw-' + mKey).value) || 0,
+        registered: parseFloat(document.getElementById('hr-' + mKey).value) || 0,
+        locked: true
+    };
+    saveLocalData();
+    renderTotal();
+    syncToGitHub();
+}
+
+function deleteHistEntry(mKey) {
+    if (confirm('Diesen manuellen Monatseintrag wirklich löschen?')) {
+        delete historicalMonths[mKey];
+        saveLocalData();
+        renderTotal();
+        syncToGitHub();
+    }
+}
+
+function openDayModal(date) {
+    var dateStr = fmtDateInput(date);
+    var entry = entries[dateStr];
+    document.getElementById('modal-title').textContent = 'Zeiten – ' + fmtDateDE(date);
+    document.getElementById('modal-date').value = dateStr;
+    document.getElementById('modal-start').value = entry ? entry.start : '';
+    document.getElementById('modal-end').value = entry ? entry.end : '';
+    document.getElementById('modal-comment').value = entry ? (entry.comment || '') : '';
+    document.getElementById('delete-btn').style.display = entry ? 'block' : 'none';
+    currentEditDateStr = dateStr;
+    document.getElementById('day-modal').classList.add('active');
+}
+
+function closeDayModal() {
+    document.getElementById('day-modal').classList.remove('active');
+    currentEditDateStr = null;
+}
+
+function saveDayEntry() {
+    var dateStr = document.getElementById('modal-date').value;
+    var start = document.getElementById('modal-start').value;
+    var end = document.getElementById('modal-end').value;
+    var comment = document.getElementById('modal-comment').value.trim();
+    if (!dateStr || !start || !end) { alert('Bitte Datum, Start und Ende ausfüllen'); return; }
+    entries[dateStr] = { start: start, end: end, comment: comment };
+    saveLocalData();
+    closeDayModal();
+    renderAll();
+    syncToGitHub();
+    showStatus('overview', 'Eintrag gespeichert', 'success');
+}
+
+function deleteEntry() {
+    if (!currentEditDateStr) return;
+    if (confirm('Eintrag für diesen Tag wirklich löschen?')) {
+        delete entries[currentEditDateStr];
+        saveLocalData();
+        closeDayModal();
+        renderAll();
+        syncToGitHub();
+        showStatus('overview', 'Eintrag gelöscht', 'success');
+    }
+}
+
+function saveToken() {
+    var val = document.getElementById('github-token-input').value.trim();
+    if (!val) { showStatus('settings', 'Bitte Token eingeben', 'error'); return; }
+    settings.githubToken = val;
+    localStorage.setItem('settings', JSON.stringify(settings));
+    document.getElementById('github-token-input').value = '';
+    document.getElementById('github-token-input').style.display = 'none';
+    document.getElementById('token-saved-display').style.display = 'block';
+    document.getElementById('token-save-btn').style.display = 'none';
+    document.getElementById('token-change-btn').style.display = 'block';
+    showStatus('settings', 'Token gespeichert', 'success');
+}
+
+function editToken() {
+    document.getElementById('github-token-input').style.display = 'block';
+    document.getElementById('github-token-input').value = '';
+    document.getElementById('token-saved-display').style.display = 'none';
+    document.getElementById('token-save-btn').style.display = 'block';
+    document.getElementById('token-change-btn').style.display = 'none';
+    document.getElementById('github-token-input').focus();
+}
+
+function renderRegHoursList() {
+    var list = document.getElementById('reg-hours-list');
+    list.innerHTML = '';
+    var now = new Date();
+    for (var i = -3; i <= 6; i++) {
+        var d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        var mKey = getMonthKey(d);
+        var label = new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(d);
+        var val = registeredHours[mKey] || '';
+        var row = document.createElement('div');
+        row.className = 'reg-row';
+        row.innerHTML = '<label>' + label + '</label><input class="reg-input" type="number" value="' + val + '" placeholder="0" step="0.5" min="0" onchange="saveRegHours(\'' + mKey + '\', this.value)"><span style="font-size:12px;color:#666;">h</span>';
+        list.appendChild(row);
+    }
+}
+
+function saveRegHours(mKey, value) {
+    var h = parseFloat(value);
+    if (h > 0) registeredHours[mKey] = h;
+    else delete registeredHours[mKey];
+    saveLocalData();
+    renderOverview();
+    renderTotal();
+}
+
+async function syncToGitHub() {
+    if (!settings.githubToken) {
+        document.getElementById('sync-status').textContent = 'Kein Token gesetzt';
+        return;
+    }
+    document.getElementById('sync-status').textContent = 'Wird gesichert...';
+    var path = 'data/entries.json';
+    var url = 'https://api.github.com/repos/' + GITHUB_OWNER + '/' + GITHUB_REPO + '/contents/' + path;
+    var headers = {
+        'Authorization': 'Bearer ' + settings.githubToken,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+    };
+    var sha = null;
+    try {
+        var getResp = await fetch(url, { headers: headers });
+        if (getResp.ok) sha = (await getResp.json()).sha;
+    } catch(e) {}
+
+    var payload = { entries: entries, registeredHours: registeredHours, historicalMonths: historicalMonths };
+    var body = {
+        message: 'Backup ' + fmtDateInput(new Date()),
+        content: btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))))
+    };
+    if (sha) body.sha = sha;
+
+    try {
+        var putResp = await fetch(url, { method: 'PUT', headers: headers, body: JSON.stringify(body) });
+        if (putResp.ok) {
+            document.getElementById('sync-status').textContent = '✓ ' + new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            showStatus('overview', 'Sync erfolgreich', 'success');
+        } else {
+            var err = await putResp.json();
+            document.getElementById('sync-status').textContent = 'Sync Fehler';
+            showStatus('overview', 'Sync Fehler: ' + (err.message || putResp.status), 'error');
+        }
+    } catch(e) {
+        document.getElementById('sync-status').textContent = 'Offline';
+        showStatus('overview', 'Sync fehlgeschlagen: ' + e.message, 'error');
+    }
+}
+
+function exportData() {
+    var data = { entries: entries, registeredHours: registeredHours, historicalMonths: historicalMonths };
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'arbeitszeiten-' + fmtDateInput(new Date()) + '.json';
+    a.click();
+    showStatus('settings', 'Daten exportiert', 'success');
+}
+
+function importData(event) {
+    var file = event.target.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = JSON.parse(e.target.result);
+            entries = migrateEntries(data.entries || {});
+            registeredHours = data.registeredHours || {};
+            historicalMonths = data.historicalMonths || {};
+            saveLocalData();
+            renderAll();
+            renderRegHoursList();
+            showStatus('settings', 'Daten importiert', 'success');
+        } catch(err) {
+            showStatus('settings', 'Import Fehler: ' + err.message, 'error');
+        }
+    };
+    reader.readAsText(file);
+}
+
+function clearAllData() {
+    if (!confirm('Wirklich ALLE lokalen Daten löschen?\n\nDas kann nicht rükgängig gemacht werden!')) return;
+    if (!confirm('Letzte Sicherheitsfrage: Alle Einträge permanent löschen?')) return;
+    localStorage.clear();
+    location.reload();
+}
+
+function fmtDateInput(date) {
+    return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+}
+
+function parseLocal(dateStr) {
+    var p = dateStr.split('-').map(Number);
+    return new Date(p[0], p[1]-1, p[2]);
+}
+
+function getMonthKey(date) {
+    return date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0');
+}
+
+function formatMonthName(date) {
+    return new Intl.DateTimeFormat('de-DE', { month: 'long', year: 'numeric' }).format(date);
+}
+
+function fmtDateDE(date) {
+    return new Intl.DateTimeFormat('de-DE', { weekday:'short', day:'2-digit', month:'2-digit', year:'numeric' }).format(date);
+}
+
+function calcDecimal(start, end) {
+    if (!start || !end) return 0;
+    var sp = start.split(':').map(Number);
+    var ep = end.split(':').map(Number);
+    return ((ep[0]*60+ep[1]) - (sp[0]*60+sp[1])) / 60;
+}
+
+function fmtH(decimal) {
+    var neg = decimal < 0;
+    var abs = Math.abs(decimal);
+    var h = Math.floor(abs);
+    var m = Math.round((abs % 1) * 60);
+    var sign = neg ? '-' : '';
+    return m === 0 ? sign+h+'h' : sign+h+'h '+m+' Min.';
+}
+
+function fmtHShort(decimal) {
+    var h = Math.floor(decimal);
+    var m = Math.round((decimal % 1) * 60);
+    return m === 0 ? h+'h' : h+'h'+m;
+}
+
+function showStatus(tab, msg, type) {
+    var el = document.getElementById(tab+'-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'status-msg show ' + type;
+    setTimeout(function() { el.classList.remove('show'); }, 3000);
+}
+
+init();
+</script>
+</body>
+</html>
