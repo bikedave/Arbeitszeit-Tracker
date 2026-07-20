@@ -550,26 +550,28 @@
                 <div class="section-title">GitHub Cloud-Sync</div>
                 <div class="settings-form">
                     <div class="form-group">
-                        <label class="form-label">GitHub Personal Access Token</label>
+                        <label class="form-label">GitHub Fine-Grained Token</label>
                         <input
                             type="password"
                             id="githubTokenInput"
                             class="form-input"
-                            placeholder="ghp_xxxxxxxxxxxx"
+                            placeholder="github_pat_xxxxxxxxxxxx"
                             onchange="saveGitHubToken()"
                         >
                         <small style="color: #999; font-size: 12px; margin-top: 6px; display: block;">
-                            Token wird lokal gespeichert. Nur für arbeitsstunden-tracker Repo.
+                            Token wird nur lokal gespeichert. Backups gehen zu deinem privaten Repo.
                         </small>
                     </div>
                     <div style="margin-top: 12px; padding: 10px; background: #f0f8ff; border-radius: 6px; font-size: 12px; color: #0066cc;">
-                        <strong>Wie Token erstellen:</strong><br>
-                        1. GitHub → Settings → Developer settings → Personal access tokens<br>
-                        2. "Tokens (classic)" → "Generate new token"<br>
-                        3. Name: "arbeitsstunden-tracker"<br>
-                        4. Berechtigungen: Nur "repo" ankreuzen<br>
-                        5. Expiration: 90 Tage<br>
-                        6. Token kopieren & hier eintragen
+                        <strong>Token erstellen (Fine-Grained):</strong><br>
+                        1. GitHub → Settings → Developer settings → Tokens (Beta)<br>
+                        2. "Generate new token" (Fine-grained tokens)<br>
+                        3. Name: "Arbeitszeiten-Backups"<br>
+                        4. Expiration: 90 days<br>
+                        5. Repository access: "Only select repositories"<br>
+                        6. Select: "Arbeitszeiten-Backups" Repo<br>
+                        7. Permissions → Contents: "Read and write"<br>
+                        8. Generate → Token kopieren & hier eintragen
                     </div>
                     <div id="syncStatus" style="margin-top: 12px; padding: 10px; border-radius: 6px; font-size: 12px; background: #f5f5f5; color: #666;">
                         Letzter Sync: <span id="lastSyncTime">nie</span>
@@ -1010,7 +1012,7 @@
         // GitHub Sync
         const GITHUB_TOKEN_KEY = 'github_token';
         const LAST_SYNC_KEY = 'last_sync_time';
-        const GITHUB_REPO = 'arbeitsstunden-tracker';
+        const GITHUB_REPO = 'Arbeitszeiten-Backups';
         const GITHUB_FILE = 'timetracking_backup.json';
 
         function getGitHubToken() {
@@ -1111,7 +1113,7 @@
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            message: `Auto-Sync Arbeitsstunden ${new Date().toLocaleDateString('de-DE')}`,
+                            message: `Auto-Sync Arbeitszeiten ${new Date().toLocaleDateString('de-DE')}`,
                             content: encodedContent,
                             ...(sha && { sha })
                         })
